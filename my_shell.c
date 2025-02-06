@@ -171,8 +171,8 @@ char** pipe_execute(char** line, int pos)
     char **line1, **line2;
 
     // Separate the tokens into two parts, before and after the pipe
-    line1 = line_separation(line, 0, pos);
-    line2 = line_separation(line, pos+1, sizeof(line));
+    line1 = line_separation(line, 0, pos);    // Commands before the pipe
+    line2 = line_separation(line, pos+1, sizeof(line));    //Commnads after the pipe
 
     // Create a pipe
     pipe(pd);
@@ -185,25 +185,28 @@ char** pipe_execute(char** line, int pos)
     if(pid==0)    // In the child process
     {   
         oldout = dup(1);    // Save the current stdout
-        dup2(pd[1],1);    // Redirect stdout to the pipe's write end
-        close(pd[0]);
+        dup2(pd[1],1);    // Redirect stdout to the pipe's write end (pd[1])
+        close(pd[0]);    // Close the read end of the pipe, we are only writing to it
         
         execvp(line1[0], line1);    // Execute the first command
         perror("error in the first exec of pipe.");
     }
-    waitpid(pid,&status,0);    // Wait for the child process to finish
+    //In the parent process, wait for the child to finish execution
+    waitpid(pid,&status,0);
     if (WIFEXITED(status))
         printf("child returned %d\n", WEXITSTATUS(status));
     else
         printf("child terminated abnormally\n");
 
-    close(pd[1]);    // Close the write end of the pipe
+    // After the first command finishes, close the write end of the pipe
+    close(pd[1]);    
     dup2(oldout,1);    // Restore the original stdout
     close(oldout);
-        
+    
+    //For the execution of the second command:
     oldin = dup(STDIN_FILENO);    // Save the current stdin
-    dup2(pd[0], STDIN_FILENO);    // Redirect stdin to the pipe's read end
-    close(pd[1]);
+    dup2(pd[0], STDIN_FILENO);    // Redirect stdin to the pipe's read end (pd[0])
+    close(pd[1]);    //Close the write endof the pipe, we are only reading from it
 
     return line2;    //Return the tokens after the pipe
 }
